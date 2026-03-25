@@ -6,16 +6,16 @@ const Log = require("logger");
 const NodeHelper = require("node_helper");
 
 module.exports = NodeHelper.create({
-
+    config: {},
+    imageList: {},
     start: function() {
         var self = this;
 
         this.nextcloud = false;
         this.localdirectory = false;
 
-        this.imageList = [];
-        this.expressApp.get("/" + this.name + "/images/:randomImageName", async function(request, response) {
-            var imageBase64Encoded = await self.fetchEncodedImage(decodeURIComponent(request.params.randomImageName));
+        this.expressApp.get("/" + this.name + "/images/:id/:randomImageName", async function(request, response) {
+            var imageBase64Encoded = await self.fetchEncodedImage(decodeURIComponent(request.params.randomImageName, request.params.id));
             response.send(imageBase64Encoded);
         });
     },
@@ -24,24 +24,28 @@ module.exports = NodeHelper.create({
     socketNotificationReceived: function(notification, payload) {
         //console.log("["+ this.name + "] received a '" + notification + "' with payload: " + payload);
         if (notification === "SET_CONFIG") {
-            this.config = payload;
-            if (this.config.imageRepository === "nextcloud") {
+            this.imageList[payload.id]=[]
+            this.config[payload.id] = payload;
+            if (this.config[payload.id].imageRepository === "nextcloud") {
+
                 this.nextcloud = true;
-            } else if (this.config.imageRepository === "localdirectory") {
+            } else if (this.config[payload.id].imageRepository === "localdirectory") {
                 this.localdirectory = true;
             }
         }
         if (notification === "FETCH_IMAGE_LIST") {
-            if (this.config.imageRepository === "nextcloud") {
-                this.fetchNextcloudImageList();
+            if (this.imageList[payload.id] === undefined)
+                this.imageList[payload.id]
+            if (this.config[payload.id].imageRepository === "nextcloud") {
+                this.fetchNextcloudImageList(this.config[payload.id]);
             }
-            if (this.config.imageRepository === "localdirectory") {
-                this.fetchLocalImageList();
+            if (this.config[payload.id].imageRepository === "localdirectory") {
+                this.fetchLocalImageList(this.config[payload.id]);
             }
         }
     },
 
-    fetchLocalImageDirectory: function(path) {
+    fetchLocalImageDirectory: function(path,config) {
         var self = this;
 
         // Validate path
@@ -50,7 +54,7 @@ module.exports = NodeHelper.create({
             return false;
         }
 
-	const excludePattern = self.config.repositoryConfig.exclude?.map(pattern => new RegExp(pattern));
+	    const excludePattern = config.repositoryConfig.exclude?.map(pattern => new RegExp(pattern));
 
         var fileList = fs.readdirSync(path, { withFileTypes: true });
         if (fileList.length > 0) {
@@ -59,38 +63,38 @@ module.exports = NodeHelper.create({
 
                 if (fileList[f].isFile()) {
                     //TODO: add mime type check here
-                    self.imageList.push(encodeURIComponent(path + "/" + fileList[f].name));
+                    self.imageList[config.id].push(encodeURIComponent(path + "/" + fileList[f].name));
                 }
-                if ((self.config.repositoryConfig.recursive === true) && fileList[f].isDirectory()) {
-                    self.fetchLocalImageDirectory(path + "/" + fileList[f].name);
+                if ((config.repositoryConfig.recursive === true) && fileList[f].isDirectory()) {
+                    self.fetchLocalImageDirectory(path + "/" + fileList[f].name,config);
                 }
             }
             return;
         }
     },
 
-    fetchLocalImageList: function() {
+    fetchLocalImageList: function(config) {
         var self = this;
-        var path = self.config.repositoryConfig.path;
+        var path = config.repositoryConfig.path;
 
-        self.imageList = [];
-    	self.fetchLocalImageDirectory(path);
+        self.imageList[config.id] = [];
+    	self.fetchLocalImageDirectory(path,config);
 
-        self.sendSocketNotification("IMAGE_LIST", self.imageList);
+        self.sendSocketNotification("IMAGE_LIST", { data: self.imageList[config.id], id: config.id });
         return false;
     },
 
 
-    fetchNextcloudImageList: function() {
+    fetchNextcloudImageList: function(config) {
         var self = this;
         var imageList = [];
-        var path = self.config.repositoryConfig.path;
+        var path = config.repositoryConfig.path;
 
         const urlParts = new URL(path);
         const requestOptions = {
             method: "PROPFIND",
             headers: {
-                "Authorization": "Basic " + new Buffer.from(this.config.repositoryConfig.username + ":" + this.config.repositoryConfig.password).toString("base64")
+                "Authorization": "Basic " + new Buffer.from(config.repositoryConfig.username + ":" + config.repositoryConfig.password).toString("base64")
             }
         };
         https.get(path, requestOptions, function(response) {
@@ -107,7 +111,7 @@ module.exports = NodeHelper.create({
                         imageList[index] = encodeURIComponent(item.replace("href>" + urlParts.pathname, ""));
                         //console.log("[" + self.name + "] Found entry: " + imageList[index]);
                     });
-                    self.sendSocketNotification("IMAGE_LIST", imageList);
+                    self.sendSocketNotification("IMAGE_LIST", { data: imageList, id: config.id });
                     return;
                 } else {
                     console.log("[" + this.name + "] WARNING: did not get any images from nextcloud url");
@@ -122,8 +126,9 @@ module.exports = NodeHelper.create({
     },
 
 
-    fetchEncodedImage: async function(passedImageName) {
+    fetchEncodedImage: async function(passedImageName,id) {
         var self = this;
+        config=this.config[id]
         return new Promise(function(resolve, reject) {
             var fullImagePath = passedImageName;
 
@@ -138,10 +143,10 @@ module.exports = NodeHelper.create({
                 const requestOptions = {
                     method: "GET",
                     headers: {
-                        "Authorization": "Basic " + new Buffer.from(self.config.repositoryConfig.username + ":" + self.config.repositoryConfig.password).toString("base64")
+                        "Authorization": "Basic " + new Buffer.from(self.config.repositoryConfig.username + ":" + config.repositoryConfig.password).toString("base64")
                     }
                 };
-                https.get(self.config.repositoryConfig.path + fullImagePath, requestOptions, (response) => {
+                https.get(config.repositoryConfig.path + fullImagePath, requestOptions, (response) => {
                     response.setEncoding('base64');
                     var fileEncoded = "data:" + response.headers["content-type"] + ";base64,";
                     response.on("data", (data) => { fileEncoded += data; });

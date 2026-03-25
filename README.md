@@ -27,6 +27,7 @@ The entry in `config.js` can include the following options:
 | Option                | Description
 |-----------------------|------------
 | `imageRepository`     | *Optional* - The image source.<br><br>**Type:** `string`<br>**Allowed:** `picsum`, `nextcloud`, `localdirectory`<br>**Default:** `picsum`
+| `id`                  | *Optional* - the unique id of this instance, defaults to '_'<br> see the section on ****multiple instances*** below on how to use this property
 | `repositoryConfig`    | *Optional* - The configuration block for the selected image repository. See below.<br><br>**Type:** `Object`
 | `random`              | *Optional* - Should the images be shown at random? Has **NO** effect when `imageRepository` is set to `picsum`, as it is forced there.<br><br>**Type:** `boolean`<br>**Default:** `true`
 | `width`               | *Optional* - The width of the image in px. Only used when `imageRepository` is set to `picsum`<br><br>**Type:** `int`<br>**Default:** `1920`
@@ -134,7 +135,18 @@ Thinking about implementing the following things:
 
 - possibility to show the EXIF comment from each image on screen (target selectable)
 - ...
+## Using multiple instances
+This module uses content ids to do the transitions between images. These were hard coded before, preventing multiple instances from working. 
 
+now you can use an ID in the config for each instance and the content ids will include that value. 
+not you need to create updated css values that include the id for each instance
+
+to do that follow these steps
+1. copy all the MMM-RandomPhoto.css lines to custom.css
+2. mass change the default id value '_' to whatever value you set in the id for an instance
+3. repeat steps 1 and 2 for each additional instance
+
+for example: if the config id value is 'foo', then the info in the css file needs to change from #_random to #foorandom
 ## Dependencies
 
 - [jQuery](https://www.npmjs.com/package/jquery) (installed via `npm install`)

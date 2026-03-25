@@ -1,5 +1,5 @@
 /* global Module */
-
+ 
 /* MagicMirror²
  * Module: MMM-RandomPhoto
  *
@@ -13,7 +13,8 @@ Module.register("MMM-RandomPhoto",{
         opacity: 0.3,
         animationSpeed: 500,
         updateInterval: 60,
-        imageRepository: "picsum", // Select the image repository source. One of "picsum" (default / fallback), "localdirectory" or "nextcloud" (currently broken because of CORS bug in nextcloud)
+		imageRepository: "picsum", // Select the image repository source. One of "picsum" (default / fallback), "localdirectory" or "nextcloud" (currently broken because of CORS bug in nextcloud)
+		config : '-',
         repositoryConfig: {
             // if imageRepository = "picsum" -> "path", "username" and "password" are ignored and can be left empty
             // if imageRepository = "nextcloud"
@@ -39,7 +40,10 @@ Module.register("MMM-RandomPhoto",{
         showStatusIcon: true,
         statusIconMode: "show", // one of: "show" (default / fallback) or "fade"
         statusIconPosition: "top_right", // one of: "top_right" (default / fallback), "top_left", "bottom_right" or "bottom_left"
-    },
+	},
+	imgID1: "",
+	imgID2: "",
+	statusIconID:"",
 
     start: function() {
         this.updateTimer = null;
@@ -48,8 +52,10 @@ Module.register("MMM-RandomPhoto",{
         this.running = false;
 
         this.nextcloud = false;
-        this.localdirectory = false;
-
+		this.localdirectory = false;
+		this.imgID1 = this.config.id + "randomPhoto-placeholder1"
+		this.imgID2 = this.config.id + "randomPhoto-placeholder2"
+		this.statusIconID = this.config.id +"randomPhotoStatusIcon"
         this.config.imageRepository = this.config.imageRepository.toLowerCase();
         if (this.config.imageRepository === "nextcloud") {
             this.nextcloud = true;
@@ -73,7 +79,7 @@ Module.register("MMM-RandomPhoto",{
 
     fetchImageList: function() {
         if (typeof this.config.repositoryConfig.path !== "undefined" && this.config.repositoryConfig.path !== null) {
-            this.sendSocketNotification('FETCH_IMAGE_LIST');
+			this.sendSocketNotification('FETCH_IMAGE_LIST',{ id: this.config.id });
         } else {
             Log.error("[" + this.name + "] Trying to use 'nextcloud' or 'localdirectory' but did not specify any 'config.repositoryConfig.path'.");
         }
@@ -107,7 +113,7 @@ Module.register("MMM-RandomPhoto",{
 
         if (self.localdirectory || self.nextcloud) {
             if (self.imageList && self.imageList.length > 0) {
-                url = "/" + this.name + "/images/" + this.returnImageFromList(mode);
+                url = "/" + this.name + "/images/"+this.config.id+'/' + this.returnImageFromList(mode);
 
                 jQuery.ajax({
                     method: "GET",
@@ -155,16 +161,16 @@ Module.register("MMM-RandomPhoto",{
         var self = this;
         var img = $('<img />').attr('src', url);
         img.on('load', function() {
-            $('#randomPhoto-placeholder1').attr('src', url).animate({
+            $('#'+self.imgID1).attr('src', url).animate({
                 opacity: self.config.opacity
             }, self.config.animationSpeed, function() {
-                $(this).attr('id', 'randomPhoto-placeholder2');
+                $(this).attr('id', self.imgID2);
             });
 
-            $('#randomPhoto-placeholder2').animate({
+            $('#'+self.imgID2).animate({
                 opacity: 0
             }, self.config.animationSpeed, function() {
-                $(this).attr('id', 'randomPhoto-placeholder1');
+                $(this).attr('id', self.imgID1);
             });
         });
     },
@@ -200,7 +206,7 @@ Module.register("MMM-RandomPhoto",{
 
     loadIcon: function(navigate="none") {
         var self = this;
-        const statusIcon = document.getElementById("randomPhotoStatusIcon");
+        const statusIcon = document.getElementById(self.statusIconID);
 
         let currentIndex = -1;
         let iconloadInProgress = false;
@@ -294,12 +300,12 @@ Module.register("MMM-RandomPhoto",{
 
     getDom: function() {
         var wrapper = document.createElement("div");
-        wrapper.id = "randomPhoto";
+        wrapper.id = this.config.id+"randomPhoto";
 
         var img1 = document.createElement("img");
-        img1.id = "randomPhoto-placeholder1";
+        img1.id = this.imgID1;
         var img2 = document.createElement("img");
-        img2.id = "randomPhoto-placeholder2";
+        img2.id = this.imgID2;
 
         // Only apply grayscale / blur css classes if we are NOT using picsum, as picsum is doing it via URL parameters
         if (this.nextcloud || this.localdirectory) {
@@ -310,8 +316,8 @@ Module.register("MMM-RandomPhoto",{
             if (this.config.blur) {
                 img1.classList.add("blur");
                 img2.classList.add("blur");
-                img1.style.setProperty("--randomphoto-blur-value", this.config.blurAmount + "px");
-                img2.style.setProperty("--randomphoto-blur-value", this.config.blurAmount + "px");
+				img1.style.setProperty("--"+this.config.id+"randomphoto-blur-value", this.config.blurAmount + "px");
+				img2.style.setProperty("--"+this.config.id+"randomphoto-blur-value", this.config.blurAmount + "px");
             }
         }
 
@@ -324,12 +330,12 @@ Module.register("MMM-RandomPhoto",{
                 this.config.statusIconPosition = 'top_right';
             }
             var statusIconObject = document.createElement("span");
-            statusIconObject.id = "randomPhotoIcon";
+            statusIconObject.id = this.config.id+"blurandomPhotoIcon";
             statusIconObject.classList.add("dimmed");
             this.config.statusIconPosition.split("_").forEach(function(extractedName) {
                 statusIconObject.classList.add("rpi" + extractedName);
             });
-            statusIconObject.innerHTML = '<i id="randomPhotoStatusIcon" class="rpihidden"></i>';
+            statusIconObject.innerHTML = '<i id="'+this.statusIconID+'" class="rpihidden"></i>';
             wrapper.appendChild(statusIconObject);
         }
         return wrapper;
@@ -359,6 +365,7 @@ Module.register("MMM-RandomPhoto",{
                 }
             }
         }
+		
         if (notification === "RANDOMPHOTO_NEXT") {
             // Don't call the pause or resume functions here, so we can actually work with both states ("paused" and "active"), so independent of what "this.running" is set to
             clearTimeout(this.updateTimer);
@@ -395,8 +402,8 @@ Module.register("MMM-RandomPhoto",{
     socketNotificationReceived: function(notification, payload) {
         //Log.log("["+ this.name + "] received a '" + notification + "' with payload: " + payload);
         //console.dir(payload);
-        if (notification === "IMAGE_LIST") {
-            this.imageList = payload;
+        if (notification === "IMAGE_LIST" && payload.id === this.config.id) {
+            this.imageList = payload.data;
             // After we now received the image list, go ahead and display them (only when not starting as hidden)
             if(!this.config.startHidden) {
                 this.resumeImageLoading(true);

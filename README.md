@@ -139,7 +139,7 @@ Thinking about implementing the following things:
 This module uses content ids to do the transitions between images. These were hard coded before, preventing multiple instances from working. 
 
 now you can use an ID in the config for each instance and the content ids will include that value. 
-not you need to create updated css values that include the id for each instance
+now you need to create updated css values that include the id for each instance
 
 to do that follow these steps
 1. copy all the MMM-RandomPhoto.css lines to custom.css

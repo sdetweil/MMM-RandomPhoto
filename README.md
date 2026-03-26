@@ -144,9 +144,16 @@ now you need to create updated css values that include the id for each instance
 to do that follow these steps
 1. copy all the MMM-RandomPhoto.css lines to custom.css
 2. mass change the default id value '_' to whatever value you set in the id for an instance
-3. repeat steps 1 and 2 for each additional instance
+3. replace the one _ in the :root section at the top 
+```
+:root {
+    --_randomPhoto-blur-value: 0px;
+}
+```
+4. repeat steps 1 and 2 for each additional instance
 
-for example: if the config id value is 'foo', then the info in the css file needs to change from #_random to #foorandom
+for example: if the config id value is 'foo', then the info in the css file needs to change from #_random to #foorandom<br>and 
+ --_random... to --foorandom...
 ## Dependencies
 
 - [jQuery](https://www.npmjs.com/package/jquery) (installed via `npm install`)
